@@ -122,6 +122,11 @@
                 }
                 if(data.wh !== undefined) document.getElementById("wh").innerText = Number(data.wh).toFixed(2) + " Wh";
                 
+                // Célhőmérséklet szinkronizálása az ESP32 belső memóriájából
+                if(data.target !== undefined && document.activeElement !== document.getElementById("target-temp")) {
+                    document.getElementById("target-temp").value = data.target;
+                }
+
                 if(data.heat !== undefined) {
                     const hEl = document.getElementById("heater-state");
                     if(data.heat == 1) {
@@ -146,8 +151,13 @@
         }
 
         function sendTargetTemp() {
-            let val = document.getElementById("target-temp").value;
-            sendCommand("set " + val);
+            let inputEl = document.getElementById("target-temp");
+            let val = parseFloat(inputEl.value);
+            if (!isNaN(val)) {
+                sendCommand("set " + val);
+            } else {
+                alert("Kérlek, érvényes számot adj meg!");
+            }
         }
     </script>
 </body>
