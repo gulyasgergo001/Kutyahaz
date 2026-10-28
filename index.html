@@ -10,8 +10,11 @@
         body { background-color: #0f172a; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; padding: 20px; margin: 0; }
         .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 20px; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
         h1 { color: #fb923c; text-align: center; font-size: 1.5rem; margin-bottom: 5px; margin-top: 0; }
-        #status { text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; padding: 6px; border-radius: 8px; background: rgba(255,255,255,0.05); }
+        #status { text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 8px; padding: 6px; border-radius: 8px; background: rgba(255,255,255,0.05); transition: background 0.3s; }
         
+        /* Üzemmód jelző sáv */
+        #mode-badge { text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; padding: 6px; border-radius: 8px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #60a5fa; }
+
         /* Időjárás és előfűtés kártya */
         .weather-box { background: rgba(30, 58, 138, 0.4); border: 1px solid #3b82f6; padding: 12px; border-radius: 12px; margin-bottom: 15px; font-size: 0.85rem; }
         .weather-title { font-weight: bold; color: #93c5fd; display: flex; justify-content: space-between; margin-bottom: 5px; }
@@ -37,7 +40,10 @@
 
     <div class="card">
         <h1>🐶 Kutyaház Dashboard</h1>
-        <div id="status" style="color: #eab308;">Csatlakozás folyamatban...</div>
+        <div id="status" style="color: #eab308;">Kapcsolódás a szerverhez...</div>
+        
+        <!-- Aktuális üzemmód kijelző -->
+        <div id="mode-badge">Üzemmód: --</div>
 
         <!-- Időjárás & Intelligens Előfűtés Kijelző -->
         <div class="weather-box">
@@ -101,9 +107,10 @@
         const topicWeather = "kutyahaz/12345/weather";
 
         const statusEl = document.getElementById("status");
+        const modeBadge = document.getElementById("mode-badge");
         let nightMinTemp = 0;
+        let lastMessageTime = Date.now();
 
-        // MQTT Csatlakozás
         const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
             keepalive: 30,
             clientId: 'KutyahazWeb_' + Math.random().toString(16).substring(2, 8),
@@ -111,79 +118,109 @@
         });
 
         client.on('connect', () => {
-            statusEl.innerText = "🟢 Online (Kapcsolódva)";
+            statusEl.innerText = "🟢 Szerverhez kapcsolódva...";
             statusEl.style.color = "#4ade80";
             client.subscribe(topicTelemetry);
-
-            // Csatlakozás után azonnal lekérjük az időjárást
             fetchNightWeather();
         });
 
         client.on('error', (err) => {
-            statusEl.innerText = "🔴 Kapcsolódási hiba";
+            statusEl.innerText = "🔴 Hálózati hiba";
             statusEl.style.color = "#f87171";
         });
 
         client.on('offline', () => {
-            statusEl.innerText = "🟡 Újracsatlakozás...";
+            statusEl.innerText = "🟡 Elveszett a kapcsolat";
             statusEl.style.color = "#eab308";
         });
 
         client.on('message', (topic, message) => {
-            try {
-                const data = JSON.parse(message.toString());
-                
-                if(data.tin !== undefined) document.getElementById("temp").innerText = Number(data.tin).toFixed(1) + " °C";
-                if(data.vbat !== undefined) document.getElementById("vbat").innerText = Number(data.vbat).toFixed(2) + " V";
-                if(data.vpct !== undefined) {
-                    document.getElementById("vpct").innerText = data.vpct + " %";
-                    document.getElementById("battery-bar").style.width = Math.min(100, Math.max(0, data.vpct)) + "%";
-                }
-                if(data.wh !== undefined) document.getElementById("wh").innerText = Number(data.wh).toFixed(2) + " Wh";
-                
-                // Célhőmérséklet beállítása (ha nem épp gépel a felhasználó)
-                if(data.target !== undefined && document.activeElement !== document.getElementById("target-temp")) {
-                    document.getElementById("target-temp").value = data.target;
-                }
+            if (topic === topicTelemetry) {
+                lastMessageTime = Date.now();
+                statusEl.innerText = "🟢 Online (ESP32 csatlakoztatva)";
+                statusEl.style.color = "#4ade80";
 
-                if(data.heat !== undefined) {
-                    const hEl = document.getElementById("heater-state");
-                    if(data.heat == 1) {
-                        hEl.innerText = "AKTÍV 🔥";
-                        hEl.style.color = "#f87171";
-                    } else {
-                        hEl.innerText = "Kikapcsolva 💤";
-                        hEl.style.color = "#94a3b8";
+                try {
+                    const data = JSON.parse(message.toString());
+                    
+                    if(data.tin !== undefined) document.getElementById("temp").innerText = Number(data.tin).toFixed(1) + " °C";
+                    if(data.vbat !== undefined) document.getElementById("vbat").innerText = Number(data.vbat).toFixed(2) + " V";
+                    if(data.vpct !== undefined) {
+                        document.getElementById("vpct").innerText = data.vpct + " %";
+                        document.getElementById("battery-bar").style.width = Math.min(100, Math.max(0, data.vpct)) + "%";
                     }
+                    if(data.wh !== undefined) document.getElementById("wh").innerText = Number(data.wh).toFixed(2) + " Wh";
+                    
+                    if(data.target !== undefined && document.activeElement !== document.getElementById("target-temp")) {
+                        document.getElementById("target-temp").value = data.target;
+                    }
+
+                    // Üzemmód vizuális megjelenítése a felületen
+                    if(data.mode !== undefined) {
+                        if(data.mode === "auto") {
+                            modeBadge.innerText = "🤖 Jelenlegi Mód: Automata (Termosztát)";
+                            modeBadge.style.color = "#60a5fa";
+                            modeBadge.style.borderColor = "rgba(96, 165, 250, 0.4)";
+                            modeBadge.style.background = "rgba(96, 165, 250, 0.1)";
+                        } else if(data.mode === "on") {
+                            modeBadge.innerText = "🔥 Jelenlegi Mód: Manuálisan BE";
+                            modeBadge.style.color = "#f87171";
+                            modeBadge.style.borderColor = "rgba(248, 113, 113, 0.4)";
+                            modeBadge.style.background = "rgba(248, 113, 113, 0.1)";
+                        } else if(data.mode === "off") {
+                            modeBadge.innerText = "💤 Jelenlegi Mód: Manuálisan KI";
+                            modeBadge.style.color = "#94a3b8";
+                            modeBadge.style.borderColor = "rgba(148, 163, 184, 0.4)";
+                            modeBadge.style.background = "rgba(148, 163, 184, 0.1)";
+                        }
+                    }
+
+                    if(data.heat !== undefined) {
+                        const hEl = document.getElementById("heater-state");
+                        if(data.heat == 1) {
+                            hEl.innerText = "AKTÍV 🔥";
+                            hEl.style.color = "#f87171";
+                        } else {
+                            hEl.innerText = "Kikapcsolva 💤";
+                            hEl.style.color = "#94a3b8";
+                        }
+                    }
+                } catch (e) {
+                    console.error("JSON hiba:", e);
                 }
-            } catch (e) {
-                console.error("JSON hiba:", e);
             }
         });
 
-        // 🌐 Ingyenes Időjárás API (Lajosmizse koordináták: 47.02, 19.55)
+        setInterval(() => {
+            if (client.connected) {
+                const elapsed = Date.now() - lastMessageTime;
+                if (elapsed > 6000) {
+                    statusEl.innerText = "🔴 ESP32 kapcsolat megszakadt!";
+                    statusEl.style.color = "#f87171";
+                    modeBadge.innerText = "⚠️ Üzemmód: Ismeretlen (Offline)";
+                    modeBadge.style.color = "#f87171";
+                }
+            }
+        }, 1000);
+
         async function fetchNightWeather() {
             try {
                 const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=47.02&longitude=19.55&daily=temperature_2m_min&timezone=auto');
                 const weatherData = await response.json();
                 
-                // Mai / következő éjszakai minimum hőmérséklet
                 nightMinTemp = weatherData.daily.temperature_2m_min[0];
                 document.getElementById("night-min-temp").innerText = nightMinTemp + " °C";
 
-                // Elküldjük az ESP32-nek is az MQTT-n keresztül
                 if (client.connected) {
                     client.publish(topicWeather, String(nightMinTemp));
                 }
 
-                // Ha hidegebb lesz mint -5 fok, megjelenítjük az Előfűtési Jelvényt
                 const boostBadge = document.getElementById("boost-status");
                 if (nightMinTemp <= -5.0) {
                     boostBadge.style.display = "block";
                 } else {
                     boostBadge.style.display = "none";
                 }
-
             } catch (err) {
                 console.error("Időjárási hiba:", err);
                 document.getElementById("night-min-temp").innerText = "N/A";
