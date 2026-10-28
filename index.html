@@ -24,12 +24,22 @@
         .box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; text-align: center; }
         .label { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
         .value { font-size: 1.5rem; font-weight: bold; margin-top: 5px; }
+        
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px; }
-        button { padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; font-size: 0.85rem; }
+        button { padding: 12px; border: 2px solid transparent; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; font-size: 0.85rem; transition: all 0.2s; }
         button:active { opacity: 0.7; }
+        
         .btn-auto { background: #2563eb; }
         .btn-on { background: #dc2626; }
         .btn-off { background: #475569; }
+
+        /* Aktív gomb kiemelése vizuálisan */
+        button.active-mode {
+            border-color: #facc15 !important;
+            box-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+            transform: scale(1.02);
+        }
+
         .battery-container { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; margin-bottom: 15px; }
         .progress-bar { width: 100%; background: #475569; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 8px; }
         .progress-fill { background: #22c55e; height: 100%; width: 0%; transition: width 0.5s; }
@@ -87,9 +97,9 @@
 
         <div class="label" style="margin-bottom: 5px;">Vezérlő Módok</div>
         <div class="btn-grid">
-            <button class="btn-auto" onclick="sendCommand('mode auto')">Auto</button>
-            <button class="btn-on" onclick="sendCommand('heat on')">Fűtés BE</button>
-            <button class="btn-off" onclick="sendCommand('heat off')">Fűtés KI</button>
+            <button id="btn-auto" class="btn-auto" onclick="sendCommand('mode auto')">Auto</button>
+            <button id="btn-on" class="btn-on" onclick="sendCommand('heat on')">Fűtés BE</button>
+            <button id="btn-off" class="btn-off" onclick="sendCommand('heat off')">Fűtés KI</button>
         </div>
 
         <div class="box" style="display: flex; align-items: center; justify-content: space-between;">
@@ -108,6 +118,11 @@
 
         const statusEl = document.getElementById("status");
         const modeBadge = document.getElementById("mode-badge");
+        
+        const btnAuto = document.getElementById("btn-auto");
+        const btnOn = document.getElementById("btn-on");
+        const btnOff = document.getElementById("btn-off");
+
         let nightMinTemp = 0;
         let lastMessageTime = Date.now();
 
@@ -155,23 +170,31 @@
                         document.getElementById("target-temp").value = data.target;
                     }
 
-                    // Üzemmód vizuális megjelenítése a felületen
+                    // Előző aktív gombok resetelése
+                    btnAuto.classList.remove("active-mode");
+                    btnOn.classList.remove("active-mode");
+                    btnOff.classList.remove("active-mode");
+
+                    // Üzemmód vizuális megjelenítése és gombok színezése a valós ESP állapot alapján
                     if(data.mode !== undefined) {
                         if(data.mode === "auto") {
                             modeBadge.innerText = "🤖 Jelenlegi Mód: Automata (Termosztát)";
                             modeBadge.style.color = "#60a5fa";
                             modeBadge.style.borderColor = "rgba(96, 165, 250, 0.4)";
                             modeBadge.style.background = "rgba(96, 165, 250, 0.1)";
+                            btnAuto.classList.add("active-mode");
                         } else if(data.mode === "on") {
                             modeBadge.innerText = "🔥 Jelenlegi Mód: Manuálisan BE";
                             modeBadge.style.color = "#f87171";
                             modeBadge.style.borderColor = "rgba(248, 113, 113, 0.4)";
                             modeBadge.style.background = "rgba(248, 113, 113, 0.1)";
+                            btnOn.classList.add("active-mode");
                         } else if(data.mode === "off") {
                             modeBadge.innerText = "💤 Jelenlegi Mód: Manuálisan KI";
                             modeBadge.style.color = "#94a3b8";
                             modeBadge.style.borderColor = "rgba(148, 163, 184, 0.4)";
                             modeBadge.style.background = "rgba(148, 163, 184, 0.1)";
+                            btnOff.classList.add("active-mode");
                         }
                     }
 
